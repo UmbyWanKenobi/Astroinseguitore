@@ -65,7 +65,7 @@ unsigned long previousMillis = millis();
 boolean ledState = LOW;          // ledState used to set the LED
 boolean MS1_Stato = LOW;
 boolean MS2_Stato = LOW;
-boolean STATO_INESEGUIMENTO = false;
+boolean STATO_INSEGUIMENTO = false;
 float STEP = 360 / 1.8; // Gradi per step
 float uSTEP = 0;
 int i = 0;
@@ -393,7 +393,7 @@ void _F_RESET_()
 {
   lcd.clear();
   lcd.print( "Riporto la tavoletta chiusa" );
-  STATO_INESEGUIMENTO = false;
+  STATO_INSEGUIMENTO = false;
   stepper.runToNewPosition (0);
 
 }
@@ -409,7 +409,7 @@ void _F_AVVIO_()
   digitalWrite(MS2_PIN, HIGH );
   MS2_Stato = HIGH;
   digitalWrite (SLEEP_PIN, HIGH);
-  STATO_INESEGUIMENTO = true;
+  STATO_INSEGUIMENTO = true;
 
   TEMPO_INSEGUIMENTO = minuti * 60;
 
@@ -455,7 +455,7 @@ void scatto() {
 
 
 void F_END_TRACK() {
-  STATO_INESEGUIMENTO = false;
+  STATO_INSEGUIMENTO = false;
   digitalWrite (SLEEP_PIN, LOW);
   digitalWrite (RESET_PIN, HIGH);
   delay(1000);
