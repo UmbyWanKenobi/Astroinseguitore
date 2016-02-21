@@ -66,11 +66,11 @@ boolean ledState = LOW; // Usato per il fototriac  necessario allo scatto remoto
 //                                                                                                                                ---------------------------------------------------
 //         DATI DEL CHIP TEXAS INSTRUMENTS TI-8825 PER IL POLOLU DRV8825                                                          | MS0  | MS1  | MS2  |        DIVISORE            |
 //                                                                                                                                |------|------|------|----------------------------|
-#define MS0_PIN 50  //                                                                                                            | LOW  | LOW  | LOW  | passo intero               |
+#define MS0_PIN 14  //                                                                                                            | LOW  | LOW  | LOW  | passo intero               |
 boolean MS0_Stato = LOW; // Usato per definire la moltiplicazione degli step del motore ad opera della scheda pilota              | HIGH | LOW  | LOW  | mezzo passo                |
-#define MS1_PIN 14  //                                                                                                            | LOW  | HIGH | LOW  | un quarto di passo         |
+#define MS1_PIN 15  //                                                                                                            | LOW  | HIGH | LOW  | un quarto di passo         |
 boolean MS1_Stato = LOW; // Usato per definire la moltiplicazione degli step del motore ad opera della scheda pilota              | HIGH | HIGH | LOW  | un ottavo di passo         |
-#define MS2_PIN 15  //                                                                                                            | LOW  | LOW  | HIGH | un sedicesimo di passo     |
+#define MS2_PIN 50  //                                                                                                            | LOW  | LOW  | HIGH | un sedicesimo di passo     |
 boolean MS2_Stato = LOW; // Usato per definire la moltiplicazione degli step del motore ad opera della scheda pilota              | HIGH | LOW  | HIGH | un trentaduesimo di passo  |
 //                                                                                                                                | LOW  | HIGH | HIGH | un trentaduesimo di passo  |
 //                                                                                                                                | HIGH | HIGH | HIGH | un trentaduesimo di passo  |
@@ -89,6 +89,7 @@ float THETA_GRADI = 0; // Angolo θ espresso in gradi
 int actime = 0;
 int sctime = 0;
 unsigned long lcount = 0;
+unsigned long scount = 0;
 float tr;
 
 float PSI = 0;
@@ -102,8 +103,8 @@ float tstep  = 0;
 
 char _buffer[13];
 // Init level
-int minuti = 1;
-float secondi = 10.01;
+int minuti = 40;
+float secondi = 10.0;
 int LUNGH_FOCALE = 10;
 
 float UpdateInterval = REGOLA_ESP / LUNGH_FOCALE / CROP;
@@ -138,7 +139,7 @@ void setup() {
   pinMode (SLEEP_PIN, OUTPUT);
   digitalWrite (SLEEP_PIN, LOW);
   digitalWrite (RESET_PIN, LOW);
-  stepper.setMaxSpeed(2000);
+  stepper.setMaxSpeed(20000);
   stepper.setAcceleration(100000);
 
   // SCHERMATA DI AVVIO
@@ -177,8 +178,12 @@ void _F_RESET_()
   lcd.clear();
   lcd.print( "Riporto la tavoletta chiusa" );
   STATO_INSEGUIMENTO = false;
+  digitalWrite (SLEEP_PIN, HIGH);
   stepper.runToNewPosition (0);
-
+  digitalWrite (SLEEP_PIN, LOW);
+  digitalWrite (RESET_PIN, HIGH);
+  delay(1000);
+  digitalWrite (RESET_PIN, LOW);
 }//--------------------------------------------------------------------------//
 
 
@@ -187,13 +192,14 @@ void _F_RESET_()
 
 void _F_AVVIO_()
 {
+  STEP = 200;
   digitalWrite(MS0_PIN, HIGH );
   MS0_Stato = HIGH;
   digitalWrite(MS1_PIN, HIGH );
   MS1_Stato = HIGH;
   digitalWrite(MS2_PIN, HIGH );
-  MS2_Stato = HIGH;
-  digitalWrite (SLEEP_PIN, HIGH);
+  MS2_Stato = LOW;
+  digitalWrite (SLEEP_PIN, HIGH);  // /Sveglia il motore
   STATO_INSEGUIMENTO = true;
 
   TEMPO_INSEGUIMENTO = minuti * 60;
@@ -217,6 +223,7 @@ void _F_AVVIO_()
   {
     STEP = STEP * 32;
   }
+  Serial.println(STEP);
   _F_SIDERALE();
 }
 
@@ -224,17 +231,19 @@ void _F_AVVIO_()
 void _F_SIDERALE () {
 
   unsigned long solar_cache = millis();
-/*  float ASTA = (LATO * 2) * sin((pi * TEMPO_INSEGUIMENTO ) / GIORNO_SIDERALE);
-  float GIRI = ASTA * FILETTI_CM;
-  float uSTEP = GIRI * STEP;
-  float _speed = uSTEP / TEMPO_INSEGUIMENTO;
-  Serial.println(uSTEP);
-  Serial.println(_speed);
+  /*  float ASTA = (LATO * 2) * sin((pi * TEMPO_INSEGUIMENTO ) / GIORNO_SIDERALE);
+    float GIRI = ASTA * FILETTI_CM;
+    float uSTEP = GIRI * STEP;
+    float _speed = uSTEP / TEMPO_INSEGUIMENTO;
+    Serial.println(uSTEP);
+    Serial.println(_speed);
 
-*/
+  */
+uSTEP = ((LATO * 2) * sin((pi * TEMPO_INSEGUIMENTO ) / GIORNO_SIDERALE)) * FILETTI_CM * STEP;
+  Serial.println(uSTEP);
   while (( STATO_INSEGUIMENTO ) && ( TEMPO_SOLARE < TEMPO_INSEGUIMENTO )) {
     int p_avanti = digitalRead(PIU_PIN);
-  long _time = millis();
+    long _time = millis();
     // Recupera il tempo solare in secondi
     TEMPO_SOLARE = float(millis() - solar_cache ) / 1000.0;
     // Converte il tempo solare in tempo siderale
@@ -251,9 +260,12 @@ void _F_SIDERALE () {
     if (millis() > lcount + 4000) {
       statusprint();
       lcount = millis ();
-       Serial.println(lcount+4000);
-  Serial.println(millis());
-   
+
+    }
+    if (millis() > scount + 5000) {
+      scatto();
+      scount = millis ();
+
     }
     // Calcolo l'angolo θ iniziale
     THETA = (TEMPO_SIDERALE / GIORNO_SOLARE) * (pi * 2);
@@ -262,82 +274,80 @@ void _F_SIDERALE () {
     THETA_GRADI = THETA * 180.0 / pi;
 
     // calcolo il complemento ddell'angolo ψ opposto a θ
-    COMPLEMENTO_PSI = THETA /2;
+    COMPLEMENTO_PSI = THETA / 2;
     // Calculate the INDICE_DI_CORREZIONE distance
     INDICE_DI_CORREZIONE = 1.25 * tan(COMPLEMENTO_PSI);
     //applico la correzione
     rc = LATO - INDICE_DI_CORREZIONE;
-   
-// Calculate d, the distance the threaded rod needs to travel
-    d = (rc * sin(THETA)) / sin((pi-THETA)/2);
+
+    // Calculate d, the distance the threaded rod needs to travel
+    d = (rc * sin(THETA)) / sin((pi - THETA) / 2);
     // Calculate the number of steps needed to
-   unsigned long steps = (d * FILETTI_CM * STEP);
+    unsigned long steps = (d * FILETTI_CM * STEP);
 
     while (last_steps < steps)
     {
-      
-      stepper.runToNewPosition (steps);
-     
-      last_steps = last_steps + 1;
-    
 
-    tstep = millis();
+      stepper.runToNewPosition (steps);
+
+      last_steps = last_steps + 1;
+
+
+      tstep = millis();
 
     }
   }
 
-
+  statusprint();
   tone(BUZZER_PIN, 1440, 2000);
   delay (6000);
   F_END_TRACK();
 }
 
 void statusprint () {
-  
+
   lcd.setCursor(0, 0);
 
 
-  
+
   lcd.print("T. siderale = "); lcd.print(TEMPO_SIDERALE);
   lcd.setCursor(0, 1);
   lcd.print("Time remain= "); lcd.print(tr);
   lcd.setCursor(0, 2);
-  
+
   lcd.print("Steps= "); lcd.print(stepper.currentPosition());
   lcd.print(" - ");
-  
-  lcd.setCursor(0, 3);
- 
-  lcd.print("THETA Angle = "); lcd.print(THETA_GRADI);
+  lcd.print( uSTEP - stepper.currentPosition());
+             lcd.setCursor(0, 3);
+
+             lcd.print("THETA Angle = "); lcd.print(THETA_GRADI);
 
 }
 
 
 void scatto() {
-  
+
   unsigned long currentMillis = millis();
 
-  if ((ledState == HIGH) && (currentMillis - previousMillis >= (secondi * 1000)))
+  if (millis() - previousMillis >= (secondi * 1000))
   {
-    ledState = LOW;  
     previousMillis = currentMillis;
+    if (ledState == LOW) {
+      ledState = HIGH;
+    } else {
+      ledState = LOW;
+    }
     digitalWrite(FOTO_PIN, ledState);
-  }
-  else if ((ledState == LOW) && (currentMillis - previousMillis >= 3000))
-  {
-    ledState = HIGH; 
-    previousMillis = currentMillis;
-    digitalWrite(FOTO_PIN, ledState);   
-  }
 
+  }
 }
 
 
 void F_END_TRACK() {
   STATO_INSEGUIMENTO = false;
   digitalWrite (SLEEP_PIN, LOW);
-  digitalWrite (RESET_PIN, HIGH);
+  // digitalWrite (RESET_PIN, HIGH);
   delay(1000);
-  digitalWrite (RESET_PIN, LOW);
+  // digitalWrite (RESET_PIN, LOW);
   return;
 }
