@@ -252,7 +252,7 @@ uSTEP = ((LATO * 2) * sin((pi * TEMPO_INSEGUIMENTO ) / GIORNO_SIDERALE)) * FILET
 
 
 
-    if ( p_avanti ==  HIGH ) {
+    if ( p_avanti ==  LOW ) {
       F_END_TRACK();
     }
 
