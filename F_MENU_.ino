@@ -7,19 +7,19 @@ void _F_MENU_()
   int p_indietro = digitalRead(MENO_PIN);
   int p_invio = digitalRead(SELECT_PIN);
   // LOOP PRIMO MENU'
-  if ( p_avanti == HIGH || p_indietro == HIGH || p_invio == HIGH)
+  if ( p_avanti == LOW || p_indietro == LOW || p_invio == LOW)
   {
-    if ( p_avanti == HIGH ) {
+    if ( p_avanti == LOW ) {
       pos++;
     }
-    if ( p_indietro == HIGH ) {
+    if ( p_indietro == LOW ) {
       pos--;
     }
     if ( pos > 3 ) pos = 0;
     if ( pos < 0 )  pos = 3;
     print_menu(pos, row);
     delay(200);
-    if ( p_invio == HIGH ) {
+    if ( p_invio == LOW ) {
       lcd.clear();
       switch ( pos )
       {
@@ -86,9 +86,9 @@ void _F_SET_()
       scelta = false;
     }
     //  CICLO DI IMMISSIONE DEI PARAMETRI
-    if ( p_avanti ==  HIGH || p_indietro ==  HIGH || p_invio ==  HIGH)
+    if ( p_avanti ==  LOW || p_indietro ==  LOW || p_invio ==  LOW)
     {
-      if ( p_avanti ==  HIGH )
+      if ( p_avanti ==  LOW )
       {
         if ( i == 0 ) {
           minuti++;
@@ -125,7 +125,7 @@ void _F_SET_()
           char _buffer[10] = "";
         }
       }
-      if ( p_indietro ==  HIGH )
+      if ( p_indietro ==  LOW )
       {
         if ( i == 0 ) {
           minuti--;
@@ -173,7 +173,7 @@ void _F_SET_()
 
         }
       }
-      if ( p_invio ==  HIGH )
+      if ( p_invio ==  LOW )
       {
         lcd.clear();
         i++;
