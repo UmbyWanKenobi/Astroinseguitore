@@ -28,30 +28,30 @@
 
 // Librerie esterne
 #include <Wire.h>
+#include <Button.h>
 #include <LiquidCrystal_I2C.h>
 #include <AccelStepper.h>
+#include <Adafruit_HMC5883_U.h>
 
 #define DEBUG   // Non commentare per test
 // Input Digitali
-#define  PIU_PIN  4   // Pulsante PIU'
-#define  MENO_PIN  3  // Pulsante MENO
-#define  SELECT_PIN 2 // Pulsante SELECT
 
+#define m_pin 47
 // Output digitali
 #define STEP_PIN 18    // Pin pilota stepper
 #define DIR_PIN 19     // Pin direzione stepper
 #define FOTO_PIN 13   // Pin pilota scatto remoto temporizzato (Booleano, se alto scatta per il tempo richiesto)
 #define BUZZER_PIN 12 // Pin pilota del buzzer
-#define SLEEP_PIN 16 // Accende il Pololu (Booleano, se alto spenge)
-#define RESET_PIN 7  // Reset controller motore
+//#define SLEEP_PIN 16 // Accende il Pololu (Booleano, se alto spenge)
+//#define RESET_PIN 7  // Reset controller motore
 // Menù interattivo
-char* MENU[3][4] = {
-  {"Settaggio", "Controllo", "Reset", "Avvio"},
-  {"Tempo d'inseguimento", "Tempo di scatto", "Lunghezza focale"},
-  {"minuti", "secondi", "millimetri"}
+char* MENU[3][5] = {
+  {"Impostazioni", "Controllo", "Reset", "Avvio","Calibrazione"},
+  {"Tempo d'inseguimento", "Tempo di scatto", "Decl. magnetica"},
+  {"minuti", "secondi", "gradi e primi"}
 };
 static const float FILETTI_CM = 10;   // Numero di filetti per cm  nella barra
-static const float LATO = 11.5;   // Distanza tra cerniera e centro della barra in cm
+static const float LATO = 15.5;   // Distanza tra cerniera e centro della barra in cm
 static const float pi = 3.1415926;   // Angolo di inizio
 static const float GIORNO_SOLARE = 86400; // Giorno solare in secondi
 static const float GIORNO_SIDERALE = 86164.0419; // Giorno siderale in secondi e decimali
@@ -66,17 +66,18 @@ boolean ledState = LOW; // Usato per il fototriac  necessario allo scatto remoto
 //                                                                                                                                ---------------------------------------------------
 //         DATI DEL CHIP TEXAS INSTRUMENTS TI-8825 PER IL POLOLU DRV8825                                                          | MS0  | MS1  | MS2  |        DIVISORE            |
 //                                                                                                                                |------|------|------|----------------------------|
-#define MS0_PIN 14  //                                                                                                            | LOW  | LOW  | LOW  | passo intero               |
+#define MS0_PIN 16  //                                                                                                            | LOW  | LOW  | LOW  | passo intero               |
 boolean MS0_Stato = LOW; // Usato per definire la moltiplicazione degli step del motore ad opera della scheda pilota              | HIGH | LOW  | LOW  | mezzo passo                |
 #define MS1_PIN 15  //                                                                                                            | LOW  | HIGH | LOW  | un quarto di passo         |
 boolean MS1_Stato = LOW; // Usato per definire la moltiplicazione degli step del motore ad opera della scheda pilota              | HIGH | HIGH | LOW  | un ottavo di passo         |
-#define MS2_PIN 50  //                                                                                                            | LOW  | LOW  | HIGH | un sedicesimo di passo     |
+#define MS2_PIN 14  //                                                                                                            | LOW  | LOW  | HIGH | un sedicesimo di passo     |
 boolean MS2_Stato = LOW; // Usato per definire la moltiplicazione degli step del motore ad opera della scheda pilota              | HIGH | LOW  | HIGH | un trentaduesimo di passo  |
 //                                                                                                                                | LOW  | HIGH | HIGH | un trentaduesimo di passo  |
 //                                                                                                                                | HIGH | HIGH | HIGH | un trentaduesimo di passo  |
 //                                                                                                                                ---------------------------------------------------
 boolean STATO_INSEGUIMENTO = false; // Imostato a TRUE se l'iseguimento è siderale
-float STEP = 360 / 1.8; // Gradi per step del motore
+float STEP = 360 /0.9;
+// Gradi per step del motore
 float uSTEP = 0;  // Micropassi legati alla scheda pilota  (calcolato dinamicamente)
 int i = 0; // Variabile Globale
 static const int REGOLA_ESP = 500;
@@ -105,9 +106,9 @@ char _buffer[13];
 // Init level
 int minuti = 40;
 float secondi = 10.0;
-int LUNGH_FOCALE = 10;
-
-float UpdateInterval = REGOLA_ESP / LUNGH_FOCALE / CROP;
+float RAD_DECL_MAGN = 0.048; // Declinazione magnetica per l'Italia Centrale
+  float DECL_MAGN = 0;
+float UpdateInterval = REGOLA_ESP / 10 / CROP;
 int pos = 0;
 int row = 0;
 //      INIZIALIZZAZIONE DELLE PERIFERICHE
@@ -115,9 +116,13 @@ LiquidCrystal_I2C lcd(0x27, 20, 4);  // Inizializza il display
 static AccelStepper stepper(AccelStepper::DRIVER,
                             STEP_PIN,
                             DIR_PIN);
+//Init HMC5883L sensor
+Adafruit_HMC5883_Unified compass = Adafruit_HMC5883_Unified(12345);
 
 
-
+Button PIU = Button(4, PULLUP);   // Pulsante PIU'
+Button MENO = Button(3, PULLUP);  // Pulsante MENO
+Button SELECT = Button(2, PULLUP); // Pulsante SELECT
 
 
 
@@ -127,22 +132,27 @@ void setup() {
   Serial.begin(115200);      //    di
 #endif                          //   debug
 
-  pinMode(PIU_PIN, INPUT_PULLUP);
+ /* pinMode(PIU_PIN, INPUT_PULLUP);
   pinMode(MENO_PIN, INPUT_PULLUP);
   pinMode(SELECT_PIN, INPUT_PULLUP);
+*/
   pinMode(BUZZER_PIN, OUTPUT);
   pinMode(FOTO_PIN, OUTPUT);
   pinMode(MS0_PIN, OUTPUT);
   pinMode(MS1_PIN, OUTPUT);
   pinMode(MS2_PIN, OUTPUT);
-  pinMode (SLEEP_PIN, OUTPUT);
-  pinMode (SLEEP_PIN, OUTPUT);
-  digitalWrite (SLEEP_PIN, LOW);
-  digitalWrite (RESET_PIN, LOW);
+//  pinMode (SLEEP_PIN, OUTPUT);
+  
+  //digitalWrite (SLEEP_PIN, LOW);
+  //digitalWrite (RESET_PIN, LOW);
+
   stepper.setMaxSpeed(20000);
   stepper.setAcceleration(100000);
 
   // SCHERMATA DI AVVIO
+  compass.begin();
+  Wire.begin();
+
   lcd.begin();
   lcd.backlight();
   lcd.setCursor(2, 1);
@@ -178,12 +188,12 @@ void _F_RESET_()
   lcd.clear();
   lcd.print( "Riporto la tavoletta chiusa" );
   STATO_INSEGUIMENTO = false;
-  digitalWrite (SLEEP_PIN, HIGH);
+ // digitalWrite (SLEEP_PIN, HIGH);
   stepper.runToNewPosition (0);
-  digitalWrite (SLEEP_PIN, LOW);
-  digitalWrite (RESET_PIN, HIGH);
+  //digitalWrite (SLEEP_PIN, LOW);
+ // digitalWrite (RESET_PIN, HIGH);
   delay(1000);
-  digitalWrite (RESET_PIN, LOW);
+  //digitalWrite (RESET_PIN, LOW);
 }//--------------------------------------------------------------------------//
 
 
@@ -192,38 +202,13 @@ void _F_RESET_()
 
 void _F_AVVIO_()
 {
-  STEP = 200;
-  digitalWrite(MS0_PIN, HIGH );
-  MS0_Stato = HIGH;
-  digitalWrite(MS1_PIN, HIGH );
-  MS1_Stato = HIGH;
-  digitalWrite(MS2_PIN, HIGH );
-  MS2_Stato = LOW;
-  digitalWrite (SLEEP_PIN, HIGH);  // /Sveglia il motore
-  STATO_INSEGUIMENTO = true;
-
+  _F_STEP_();
   TEMPO_INSEGUIMENTO = minuti * 60;
-
-  if (MS0_Stato && !MS1_Stato && !MS2_Stato)
-  {
-    STEP = STEP * 2;
-  }
-  if (!MS0_Stato && MS1_Stato && !MS2_Stato)
-  {
-    STEP = STEP * 4;
-  }
-  if (MS0_Stato && MS1_Stato && !MS2_Stato)
-  {
-    STEP = STEP * 8;
-  } if (!MS0_Stato && !MS1_Stato && MS2_Stato)
-  {
-    STEP = STEP * 16;
-  }
-  if (MS0_Stato && MS1_Stato && MS2_Stato)
-  {
-    STEP = STEP * 32;
-  }
+  if (TEMPO_SOLARE > TEMPO_INSEGUIMENTO) TEMPO_SOLARE = 0;;
+  STATO_INSEGUIMENTO = true;
+  last_steps = 0;
   Serial.println(STEP);
+ // digitalWrite (SLEEP_PIN, HIGH);  // /Sveglia il motore
   _F_SIDERALE();
 }
 
@@ -239,10 +224,10 @@ void _F_SIDERALE () {
     Serial.println(_speed);
 
   */
-uSTEP = ((LATO * 2) * sin((pi * TEMPO_INSEGUIMENTO ) / GIORNO_SIDERALE)) * FILETTI_CM * STEP;
-  Serial.println(uSTEP);
+  uSTEP = ((LATO * 2) * sin((pi * TEMPO_INSEGUIMENTO ) / GIORNO_SIDERALE)) * FILETTI_CM * STEP;
+ 
   while (( STATO_INSEGUIMENTO ) && ( TEMPO_SOLARE < TEMPO_INSEGUIMENTO )) {
-    int p_avanti = digitalRead(PIU_PIN);
+  
     long _time = millis();
     // Recupera il tempo solare in secondi
     TEMPO_SOLARE = float(millis() - solar_cache ) / 1000.0;
@@ -252,7 +237,7 @@ uSTEP = ((LATO * 2) * sin((pi * TEMPO_INSEGUIMENTO ) / GIORNO_SIDERALE)) * FILET
 
 
 
-    if ( p_avanti ==  LOW ) {
+    if ( PIU.isPressed() ) {
       F_END_TRACK();
     }
 
@@ -271,8 +256,7 @@ uSTEP = ((LATO * 2) * sin((pi * TEMPO_INSEGUIMENTO ) / GIORNO_SIDERALE)) * FILET
     THETA = (TEMPO_SIDERALE / GIORNO_SOLARE) * (pi * 2);
 
     // Converte θ in gradi per la lettura
-    THETA_GRADI = THETA * 180.0 / pi;
-
+    THETA_GRADI = GRADI_DA_RADIANTI (THETA);
     // calcolo il complemento ddell'angolo ψ opposto a θ
     COMPLEMENTO_PSI = THETA / 2;
     // Calculate the INDICE_DI_CORREZIONE distance
@@ -303,7 +287,7 @@ uSTEP = ((LATO * 2) * sin((pi * TEMPO_INSEGUIMENTO ) / GIORNO_SIDERALE)) * FILET
   delay (6000);
   F_END_TRACK();
 }
-
+//--------------------------------(   STAMPA LO STATO DI AVAMZAMENTO DELLA FASE DI INSEGUIMENTO SIDERALE   )-----------------------------//
 void statusprint () {
 
   lcd.setCursor(0, 0);
@@ -321,10 +305,11 @@ void statusprint () {
              lcd.setCursor(0, 3);
 
              lcd.print("THETA Angle = "); lcd.print(THETA_GRADI);
+   
 
 }
 
-
+//--------------------------------(   ROUTINE DI SCATTO REMOTO   )-----------------------------//
 void scatto() {
 
   unsigned long currentMillis = millis();
@@ -342,12 +327,52 @@ void scatto() {
   }
 }
 
-
+//--------------------------------(   FINE DEL CICLO   )-----------------------------//
 void F_END_TRACK() {
   STATO_INSEGUIMENTO = false;
-  digitalWrite (SLEEP_PIN, LOW);
+  //digitalWrite (SLEEP_PIN, LOW);
   // digitalWrite (RESET_PIN, HIGH);
   delay(1000);
   // digitalWrite (RESET_PIN, LOW);
   return;
 }
+//--------------------------------(   STABILISCE IL NUMERO DEI MICROSTEP   )-----------------------------//
+void _F_STEP_() {
+  STEP = 400;
+  digitalWrite(MS0_PIN, HIGH );
+  MS0_Stato = HIGH;
+  digitalWrite(MS1_PIN, HIGH );
+  MS1_Stato = HIGH;
+  digitalWrite(MS2_PIN, HIGH );
+  MS2_Stato = HIGH;
+
+
+  TEMPO_INSEGUIMENTO = minuti * 60;
+
+  if (MS0_Stato && !MS1_Stato && !MS2_Stato)
+  {
+    STEP = STEP * 2;
+  }
+  if (!MS0_Stato && MS1_Stato && !MS2_Stato)
+  {
+    STEP = STEP * 4;
+  }
+  if (MS0_Stato && MS1_Stato && !MS2_Stato)
+  {
+    STEP = STEP * 8;
+  } if (!MS0_Stato && !MS1_Stato && MS2_Stato)
+  {
+    STEP = STEP * 16;
+  }
+  if (MS0_Stato && MS1_Stato && MS2_Stato)
+  {
+    STEP = STEP * 32;
+  }
+  Serial.println(STEP);
+}
+float GRADI_DA_RADIANTI(float angolo) {
+  float gradi;
+  gradi= angolo * 180 / pi;
+return gradi;
+}
+
