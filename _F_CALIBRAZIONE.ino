@@ -22,9 +22,9 @@ void _F_CALIBRAZIONE() {
     clear_row(0);
     lcd.print("X");
     lcd.print(Asse_x);
-    lcd.print(" Y ");
+    lcd.print(" Y");
     lcd.print(Asse_y);
-    lcd.print(" ");
+    lcd.print(" Z");
     lcd.print(Asse_z);
 
 
@@ -80,6 +80,9 @@ void _F_CALIBRAZIONE() {
       clear_row(3);
       lcd.setCursor((20 - strlen(MENU[3][7])) / 2, 3);
       lcd.print( MENU[3][7] );
+    }
+    if  ( SELECT.isPressed () ){
+      calibrazione = false;
     }
     delay(1000);
   }
