@@ -70,8 +70,8 @@ void _F_SET_()
 {
   int i = 0;
   boolean scelta = true;
-  char _buffer [10];
-  float decl = 0;
+
+ 
   unsigned int _deg, _D, _min, _M;
 
   while ( i < 3 )
@@ -117,8 +117,8 @@ void _F_SET_()
           char _buffer[10] = "";
         }
         if ( i == 2 ) {                                                                               //  In questa routine viene impostata la DECLINAZIONE MAGNETICA
-          decl += 0.0003;                                                                             //  per la località di osservazione. Essa si può ricavare visitando il sito
-          Split_into_dms(decl, &_deg, &_min);                                                         //  http://www.magnetic-declination.com/ cercando la propria località
+          DECL_MAGN += 0.0003;                                                                             //  per la località di osservazione. Essa si può ricavare visitando il sito
+          Split_into_dms(DECL_MAGN, &_deg, &_min);                                                         //  http://www.magnetic-declination.com/ cercando la propria località
           _D = _deg;                                                                                  //  anche se la stima di default (2°45') copre abbastanza bene l'Italia Centrale.
           _M = _min;                                                                                  //  L'utente vedrà visualizzato il valore in gradi sessadecimali 
           sprintf (_buffer, "%s:", MENU[2][i]);                                                       //  mentre l'azione di input avviene tutta in radianti, per le ragioni di
@@ -165,8 +165,8 @@ void _F_SET_()
 
         }
         if ( i == 2 ) {
-          decl -= 0.0003;
-          Split_into_dms(decl, &_deg, &_min);
+          DECL_MAGN -= 0.0003;
+          Split_into_dms(DECL_MAGN, &_deg, &_min);
           _D = _deg;
           _M = _min;
           sprintf (_buffer, "%s:", MENU[2][i]);

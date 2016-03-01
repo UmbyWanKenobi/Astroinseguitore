@@ -45,10 +45,11 @@
 //#define SLEEP_PIN 16 // Accende il Pololu (Booleano, se alto spenge)
 //#define RESET_PIN 7  // Reset controller motore
 // Menù interattivo
-char* MENU[3][5] = {
-  {"Impostazioni", "Controllo", "Reset", "Avvio","Calibrazione"},
+char* MENU[4][8] = {
+  {"Impostazioni", "Controllo", "Reset", "Avvio", "Calibrazione"},
   {"Tempo d'inseguimento", "Tempo di scatto", "Decl. magnetica"},
-  {"minuti", "secondi", "gradi e primi"}
+  {"minuti", "secondi", "gradi e primi"},
+  {"NORD", "NORD-OVEST", "OVEST", "SUD-OVEST", "SUD", "SUD-EST", "EST", "NORD-EST"}
 };
 static const float FILETTI_CM = 10;   // Numero di filetti per cm  nella barra
 static const float LATO = 15.5;   // Distanza tra cerniera e centro della barra in cm
@@ -76,7 +77,7 @@ boolean MS2_Stato = LOW; // Usato per definire la moltiplicazione degli step del
 //                                                                                                                                | HIGH | HIGH | HIGH | un trentaduesimo di passo  |
 //                                                                                                                                ---------------------------------------------------
 boolean STATO_INSEGUIMENTO = false; // Imostato a TRUE se l'iseguimento è siderale
-float STEP = 360 /0.9;
+float STEP = 360 / 0.9;
 // Gradi per step del motore
 float uSTEP = 0;  // Micropassi legati alla scheda pilota  (calcolato dinamicamente)
 int i = 0; // Variabile Globale
@@ -106,8 +107,7 @@ char _buffer[13];
 // Init level
 int minuti = 40;
 float secondi = 10.0;
-float RAD_DECL_MAGN = 0.048; // Declinazione magnetica per l'Italia Centrale
-  float DECL_MAGN = 0;
+float DECL_MAGN = 0.048; // Declinazione magnetica per l'Italia Centrale
 float UpdateInterval = REGOLA_ESP / 10 / CROP;
 int pos = 0;
 int row = 0;
@@ -132,17 +132,17 @@ void setup() {
   Serial.begin(115200);      //    di
 #endif                          //   debug
 
- /* pinMode(PIU_PIN, INPUT_PULLUP);
-  pinMode(MENO_PIN, INPUT_PULLUP);
-  pinMode(SELECT_PIN, INPUT_PULLUP);
-*/
+  /* pinMode(PIU_PIN, INPUT_PULLUP);
+    pinMode(MENO_PIN, INPUT_PULLUP);
+    pinMode(SELECT_PIN, INPUT_PULLUP);
+  */
   pinMode(BUZZER_PIN, OUTPUT);
   pinMode(FOTO_PIN, OUTPUT);
   pinMode(MS0_PIN, OUTPUT);
   pinMode(MS1_PIN, OUTPUT);
   pinMode(MS2_PIN, OUTPUT);
-//  pinMode (SLEEP_PIN, OUTPUT);
-  
+  //  pinMode (SLEEP_PIN, OUTPUT);
+
   //digitalWrite (SLEEP_PIN, LOW);
   //digitalWrite (RESET_PIN, LOW);
 
@@ -188,10 +188,10 @@ void _F_RESET_()
   lcd.clear();
   lcd.print( "Riporto la tavoletta chiusa" );
   STATO_INSEGUIMENTO = false;
- // digitalWrite (SLEEP_PIN, HIGH);
+  // digitalWrite (SLEEP_PIN, HIGH);
   stepper.runToNewPosition (0);
   //digitalWrite (SLEEP_PIN, LOW);
- // digitalWrite (RESET_PIN, HIGH);
+  // digitalWrite (RESET_PIN, HIGH);
   delay(1000);
   //digitalWrite (RESET_PIN, LOW);
 }//--------------------------------------------------------------------------//
@@ -208,7 +208,7 @@ void _F_AVVIO_()
   STATO_INSEGUIMENTO = true;
   last_steps = 0;
   Serial.println(STEP);
- // digitalWrite (SLEEP_PIN, HIGH);  // /Sveglia il motore
+  // digitalWrite (SLEEP_PIN, HIGH);  // /Sveglia il motore
   _F_SIDERALE();
 }
 
@@ -225,9 +225,9 @@ void _F_SIDERALE () {
 
   */
   uSTEP = ((LATO * 2) * sin((pi * TEMPO_INSEGUIMENTO ) / GIORNO_SIDERALE)) * FILETTI_CM * STEP;
- 
+
   while (( STATO_INSEGUIMENTO ) && ( TEMPO_SOLARE < TEMPO_INSEGUIMENTO )) {
-  
+
     long _time = millis();
     // Recupera il tempo solare in secondi
     TEMPO_SOLARE = float(millis() - solar_cache ) / 1000.0;
@@ -302,10 +302,10 @@ void statusprint () {
   lcd.print("Steps= "); lcd.print(stepper.currentPosition());
   lcd.print(" - ");
   lcd.print( uSTEP - stepper.currentPosition());
-             lcd.setCursor(0, 3);
+  lcd.setCursor(0, 3);
 
-             lcd.print("THETA Angle = "); lcd.print(THETA_GRADI);
-   
+  lcd.print("THETA Angle = "); lcd.print(THETA_GRADI);
+
 
 }
 
@@ -372,7 +372,7 @@ void _F_STEP_() {
 }
 float GRADI_DA_RADIANTI(float angolo) {
   float gradi;
-  gradi= angolo * 180 / pi;
-return gradi;
+  gradi = angolo * 180 / pi;
+  return gradi;
 }
 
